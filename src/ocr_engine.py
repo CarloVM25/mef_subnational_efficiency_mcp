@@ -34,7 +34,8 @@ import pandas as pd
 PDF_PATH      = Path("data/raw_pdfs/presupuesto_1964.pdf")
 PROCESSED_DIR = Path("data/processed")
 
-JSON_OUT   = PROCESSED_DIR / "historical_1964.json"
+JSON_OUT      = PROCESSED_DIR / "historical_1964.json"
+PARTIAL_JSON  = PROCESSED_DIR / "historical_1964_partial.json"
 CSV_OUT    = PROCESSED_DIR / "historical_1964_summary.csv"
 CHART1_OUT = PROCESSED_DIR / "chart_numbers_per_page.png"
 CHART2_OUT = PROCESSED_DIR / "chart_top15_keywords.png"
@@ -45,7 +46,7 @@ CHART2_OUT = PROCESSED_DIR / "chart_top15_keywords.png"
 DEFAULT_PAGE_START = 4   # 0-indexed
 DEFAULT_PAGE_END   = 19  # 0-indexed, exclusive
 N_PAGES            = 15
-DPI                = 300
+DPI                = 150
 
 # ── regex patterns ─────────────────────────────────────────────────────────────
 # Matches numbers with thousands separators (1,500,000 / 1.500.000),
@@ -116,12 +117,31 @@ def _page_to_image(doc: fitz.Document, page_num: int) -> Path:
 def _run_ocr(ocr, img_path: Path) -> list[str]:
     """
     Run PaddleOCR on an image and return a flat list of recognised text lines.
-    PaddleOCR 3.x returns a list of result dicts; rec_texts holds the strings.
+
+    Uses the modern predict() API (PaddleOCR 3.x). Each result item is an
+    OCRResult object that supports dict-style .get() access; rec_texts holds
+    the recognised string for each detected text region.
     """
-    result = ocr.ocr(str(img_path))
+    result = ocr.predict(str(img_path))
     if not result or not result[0]:
         return []
     return list(result[0].get("rec_texts", []))
+
+
+def _save_partial(pages_data: list[dict[str, Any]]) -> None:
+    """
+    Persist the pages processed so far to data/processed/historical_1964_partial.json.
+    Called after each successful page so progress survives a crash.
+    At most 15 small dicts, so rewriting the whole file each time is negligible.
+    """
+    PARTIAL_JSON.write_text(
+        json.dumps(
+            {"pages_completed": len(pages_data), "pages": pages_data},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _extract_numbers(lines: list[str]) -> list[str]:
@@ -197,6 +217,7 @@ def process_pages(
                 "numbers_found": numbers,
                 "categories_found": categories,
             })
+            _save_partial(pages_data)
             logger.info(
                 "  -> %d text lines | %d numbers | %d categories",
                 len(lines), len(numbers), len(categories),
