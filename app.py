@@ -29,11 +29,12 @@ def _find_chart(primary: str, fallback: str) -> Optional[Path]:
     f = PROCESSED_DIR / fallback
     return f if f.exists() else None
 
-# ── column names (mirror data_pipeline.py) ────────────────────────────────────
-COL_ENTITY = "Nombre Pliego"
-COL_NIVEL  = "Nivel de Gobierno"
-COL_PIM    = "PIM"
-COL_DEV    = "Devengado"
+# ── column names (mirror data_pipeline.py / budget_2025_summary.csv) ─────────
+COL_ENTITY = "EJECUTORA_NOMBRE"
+COL_DEPT   = "DEPARTAMENTO_EJECUTORA_NOMBRE"
+COL_NIVEL  = "GRUPO_ENTIDAD_NOMBRE"
+COL_PIM    = "MONTO_PIM"
+COL_DEV    = "MONTO_DEVENGADO"
 COL_AVANCE = "Avance_Pct"
 COL_SALDO  = "Saldo_No_Devengado"
 
@@ -140,7 +141,7 @@ st.markdown("""
 def load_budget_summary() -> Optional[pd.DataFrame]:
     if not BUDGET_SUMMARY.exists():
         return None
-    return pd.read_csv(BUDGET_SUMMARY)
+    return pd.read_csv(BUDGET_SUMMARY, encoding="utf-8-sig")
 
 
 @st.cache_data(ttl=300)
@@ -467,14 +468,14 @@ with tab3:
 
             # Format for display (keep numeric df_shame for chart)
             display_df = df_shame[
-                [COL_ENTITY, COL_NIVEL, COL_PIM, COL_DEV, COL_AVANCE, COL_SALDO]
+                [COL_ENTITY, COL_DEPT, COL_NIVEL, COL_PIM, COL_DEV, COL_AVANCE, COL_SALDO]
             ].copy()
             display_df[COL_PIM]    = display_df[COL_PIM].map("S/ {:,.0f}".format)
             display_df[COL_DEV]    = display_df[COL_DEV].map("S/ {:,.0f}".format)
             display_df[COL_AVANCE] = display_df[COL_AVANCE].map("{:.1f}%".format)
             display_df[COL_SALDO]  = display_df[COL_SALDO].map("S/ {:,.0f}".format)
             display_df.columns = [
-                "Entidad", "Nivel", "PIM", "Devengado", "Avance %", "Saldo No Devengado"
+                "Entidad", "Departamento", "Nivel", "PIM", "Devengado", "Avance %", "Saldo No Devengado"
             ]
 
             st.dataframe(display_df, use_container_width=True, hide_index=True, height=360)
